@@ -19,15 +19,39 @@ const SOCIAL_LINKS = [
   },
 ];
 
-type Status = "idle" | "submitting" | "sent";
+const WEB3FORMS_ACCESS_KEY = process.env.NEXT_PUBLIC_WEB3FORMS_ACCESS_KEY ?? "";
+
+type Status = "idle" | "submitting" | "sent" | "error";
 
 export function Contact() {
   const [status, setStatus] = useState<Status>("idle");
 
-  function handleSubmit(e: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setStatus("submitting");
-    window.setTimeout(() => setStatus("sent"), 900);
+
+    const form = e.currentTarget;
+    const formData = new FormData(form);
+    formData.append("access_key", WEB3FORMS_ACCESS_KEY);
+    formData.append("subject", "New message from your portfolio site");
+
+    try {
+      const res = await fetch("https://api.web3forms.com/submit", {
+        method: "POST",
+        headers: { Accept: "application/json" },
+        body: formData,
+      });
+      const result = await res.json();
+
+      if (result.success) {
+        setStatus("sent");
+        form.reset();
+      } else {
+        setStatus("error");
+      }
+    } catch {
+      setStatus("error");
+    }
   }
 
   return (
@@ -132,9 +156,18 @@ export function Contact() {
               />
             </Field>
 
+            {/* Honeypot spam trap, hidden from real visitors */}
+            <input
+              type="checkbox"
+              name="botcheck"
+              className="hidden"
+              tabIndex={-1}
+              autoComplete="off"
+            />
+
             <button
               type="submit"
-              disabled={status !== "idle"}
+              disabled={status === "submitting"}
               className="group relative inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-full text-xs font-normal tracking-tight text-neutral-100 overflow-hidden transition-transform duration-500 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-70 disabled:hover:scale-100 self-start mt-2"
               style={{
                 background:
@@ -146,16 +179,29 @@ export function Contact() {
                 {status === "idle" && "Send message"}
                 {status === "submitting" && "Sending..."}
                 {status === "sent" && "Message sent"}
+                {status === "error" && "Try again"}
               </span>
               <Icon
                 icon={
                   status === "sent"
                     ? "solar:check-circle-linear"
-                    : "solar:arrow-right-linear"
+                    : status === "error"
+                      ? "solar:danger-triangle-linear"
+                      : "solar:arrow-right-linear"
                 }
                 className="relative z-10 text-base opacity-60 group-hover:opacity-100 transition-all duration-500"
               />
             </button>
+            {status === "error" && (
+              <p className="text-xs font-extralight text-red-400/80">
+                Something went wrong sending your message. Please try again,
+                or email {" "}
+                <a href="mailto:cikenduhill@gmail.com" className="underline">
+                  cikenduhill@gmail.com
+                </a>{" "}
+                directly.
+              </p>
+            )}
           </form>
         </div>
         </Reveal>

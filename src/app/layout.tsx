@@ -14,9 +14,7 @@ const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
 });
 
-const siteUrl = process.env.VERCEL_URL
-  ? `https://${process.env.VERCEL_URL}`
-  : "http://localhost:3000";
+const siteUrl = "https://devhills.vercel.app";
 
 const title = "Hillary Chikendu | Fullstack React / Next.js Developer";
 const description =
