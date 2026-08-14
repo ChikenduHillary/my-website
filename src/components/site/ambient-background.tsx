@@ -1,8 +1,24 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+
+const CAPABILITY_QUERY = "(max-width: 768px), (prefers-reduced-motion: reduce)";
+
+function subscribeToCapability(callback: () => void) {
+  const mq = window.matchMedia(CAPABILITY_QUERY);
+  mq.addEventListener("change", callback);
+  return () => mq.removeEventListener("change", callback);
+}
+
+function getWebGLEnabled() {
+  return !window.matchMedia(CAPABILITY_QUERY).matches;
+}
+
+function getWebGLEnabledServer() {
+  return false;
+}
 
 const VERTEX_SHADER = `
   attribute vec2 a_pos;
@@ -169,8 +185,14 @@ function createShader(gl: WebGLRenderingContext, type: number, src: string) {
 export function AmbientBackground() {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const enableWebGL = useSyncExternalStore(
+    subscribeToCapability,
+    getWebGLEnabled,
+    getWebGLEnabledServer,
+  );
 
   useEffect(() => {
+    if (!enableWebGL) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -251,7 +273,7 @@ export function AmbientBackground() {
       document.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("resize", resize);
     };
-  }, []);
+  }, [enableWebGL]);
 
   useEffect(() => {
     const wrapper = wrapperRef.current;
@@ -290,7 +312,17 @@ export function AmbientBackground() {
           "radial-gradient(circle closest-side, black 50%, transparent 100%)",
       }}
     >
-      <canvas ref={canvasRef} className="w-full h-full block" />
+      {enableWebGL ? (
+        <canvas ref={canvasRef} className="w-full h-full block" />
+      ) : (
+        <div
+          className="w-full h-full block"
+          style={{
+            background:
+              "radial-gradient(circle at 50% 45%, rgba(255,255,255,0.07), transparent 60%)",
+          }}
+        />
+      )}
     </div>
   );
 }
