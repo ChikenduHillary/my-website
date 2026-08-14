@@ -76,7 +76,10 @@ export function Hero() {
       </div>
 
       {/* Masked Reveal H1 */}
-      <h1 className="text-5xl md:text-7xl font-thin tracking-tight leading-[1.05] mb-6 text-neutral-100 max-w-4xl mx-auto flex flex-wrap justify-center gap-x-[0.25em] gap-y-2">
+      <h1
+        className="text-5xl md:text-7xl font-thin tracking-tight leading-[1.05] mb-6 text-neutral-100 max-w-4xl mx-auto flex flex-wrap justify-center gap-x-[0.25em] gap-y-2"
+        style={{ textShadow: "0 4px 28px rgba(0,0,0,0.65)" }}
+      >
         {TITLE_WORDS.map((word, i) => (
           <span key={i} className="inline-block overflow-hidden pb-2">
             <span
@@ -85,7 +88,7 @@ export function Hero() {
                 GRADIENT_WORDS.has(word.toLowerCase())
                   ? {
                       backgroundImage:
-                        "linear-gradient(135deg, #ffffff, #a3a3a3, #525252)",
+                        "linear-gradient(135deg, #ffffff, #e5e5e5, #b5b5b5)",
                       WebkitBackgroundClip: "text",
                       WebkitTextFillColor: "transparent",
                       fontWeight: 200,
@@ -171,9 +174,10 @@ function Metric({
         id={id}
         className="text-xl sm:text-2xl font-thin tracking-tight text-transparent bg-clip-text"
         style={{
-          backgroundImage: "linear-gradient(135deg, #f5f5f5, #737373)",
+          backgroundImage: "linear-gradient(135deg, #ffffff, #c2c2c2)",
           WebkitBackgroundClip: "text",
           WebkitTextFillColor: "transparent",
+          textShadow: "0 4px 20px rgba(0,0,0,0.6)",
         }}
       >
         {value}

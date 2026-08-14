@@ -60,7 +60,10 @@ export function Contact() {
       className="relative z-10 w-full px-6 py-32 max-w-5xl mx-auto flex flex-col items-center"
     >
       <Reveal className="mb-6">
-        <h2 className="text-3xl sm:text-5xl font-thin tracking-tight text-neutral-100 text-center">
+        <h2
+          className="text-3xl sm:text-5xl font-thin tracking-tight text-neutral-100 text-center"
+          style={{ textShadow: "0 4px 28px rgba(0,0,0,0.65)" }}
+        >
           Get In Touch
         </h2>
       </Reveal>

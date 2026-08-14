@@ -4,34 +4,49 @@ import { useEffect, useRef, useSyncExternalStore } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 
-const CAPABILITY_QUERY = "(max-width: 768px), (prefers-reduced-motion: reduce)";
-
-function subscribeToCapability(callback: () => void) {
-  const mq = window.matchMedia(CAPABILITY_QUERY);
-  mq.addEventListener("change", callback);
-  return () => mq.removeEventListener("change", callback);
+function subscribeToMediaQuery(query: string) {
+  return (callback: () => void) => {
+    const mq = window.matchMedia(query);
+    mq.addEventListener("change", callback);
+    return () => mq.removeEventListener("change", callback);
+  };
 }
 
-function getWebGLEnabled() {
-  return !window.matchMedia(CAPABILITY_QUERY).matches;
-}
+const subscribeReducedMotion = subscribeToMediaQuery(
+  "(prefers-reduced-motion: reduce)",
+);
+const getReducedMotion = () =>
+  window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const getReducedMotionServer = () => false;
 
-function getWebGLEnabledServer() {
-  return false;
-}
+const subscribeSmallScreen = subscribeToMediaQuery("(max-width: 768px)");
+const getSmallScreen = () => window.matchMedia("(max-width: 768px)").matches;
+const getSmallScreenServer = () => false;
 
 const VERTEX_SHADER = `
   attribute vec2 a_pos;
   void main(){ gl_Position = vec4(a_pos, 0.0, 1.0); }
 `;
 
-const FRAGMENT_SHADER = `
-  precision highp float;
+// `lite` trims the raymarch step count and noise octaves for mobile GPUs,
+// which cuts the dominant per-pixel cost (the loop and calcNormal's 6 extra
+// map() evaluations) by more than half while keeping the same silhouette.
+function buildFragmentShader({ lite }: { lite: boolean }) {
+  const maxSteps = lite ? 30 : 70;
+  const precision = lite ? "mediump" : "highp";
+  const extraOctaves = lite
+    ? ""
+    : `
+    morph += snoise(p * 1.5 - t * 0.05 + 10.0) * 0.08;
+    morph += snoise(p * 3.0 + t * 0.02) * 0.02;`;
+
+  return `
+  precision ${precision} float;
   uniform vec2 u_res;
   uniform float u_time;
   uniform vec2 u_mouse;
 
-  #define MAX_STEPS 70
+  #define MAX_STEPS ${maxSteps}
   #define MAX_DIST 20.0
   #define SURF_DIST 0.002
 
@@ -81,9 +96,7 @@ const FRAGMENT_SHADER = `
 
   float map(vec3 p, float t) {
     float radius = 1.8;
-    float morph = snoise(p * 0.8 + t * 0.1) * 0.2;
-    morph += snoise(p * 1.5 - t * 0.05 + 10.0) * 0.08;
-    morph += snoise(p * 3.0 + t * 0.02) * 0.02;
+    float morph = snoise(p * 0.8 + t * 0.1) * 0.2;${extraOctaves}
     return length(p) - radius + morph;
   }
 
@@ -170,6 +183,7 @@ const FRAGMENT_SHADER = `
     gl_FragColor = vec4(col, 1.0);
   }
 `;
+}
 
 function createShader(gl: WebGLRenderingContext, type: number, src: string) {
   const shader = gl.createShader(type);
@@ -185,16 +199,24 @@ function createShader(gl: WebGLRenderingContext, type: number, src: string) {
 export function AmbientBackground() {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const enableWebGL = useSyncExternalStore(
-    subscribeToCapability,
-    getWebGLEnabled,
-    getWebGLEnabledServer,
+
+  const prefersReducedMotion = useSyncExternalStore(
+    subscribeReducedMotion,
+    getReducedMotion,
+    getReducedMotionServer,
+  );
+  const isSmallScreen = useSyncExternalStore(
+    subscribeSmallScreen,
+    getSmallScreen,
+    getSmallScreenServer,
   );
 
   useEffect(() => {
-    if (!enableWebGL) return;
+    if (prefersReducedMotion) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
+
+    const lite = isSmallScreen;
 
     const gl = canvas.getContext("webgl", {
       alpha: false,
@@ -204,7 +226,7 @@ export function AmbientBackground() {
     if (!gl) return;
 
     const vs = createShader(gl, gl.VERTEX_SHADER, VERTEX_SHADER);
-    const fs = createShader(gl, gl.FRAGMENT_SHADER, FRAGMENT_SHADER);
+    const fs = createShader(gl, gl.FRAGMENT_SHADER, buildFragmentShader({ lite }));
     if (!vs || !fs) return;
 
     const prog = gl.createProgram();
@@ -238,13 +260,16 @@ export function AmbientBackground() {
     };
     document.addEventListener("mousemove", handleMouseMove);
 
-    const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+    // Mobile renders at a lower internal resolution (GPU upscales the
+    // canvas bitmap) on top of the cheaper "lite" shader above.
+    const dpr = Math.min(window.devicePixelRatio || 1, lite ? 1 : 1.5);
+    const resolutionScale = lite ? 0.6 : 1;
     function resize() {
       if (!gl || !canvas) return;
       const w = window.innerWidth;
       const h = window.innerHeight;
-      canvas.width = Math.round(w * dpr);
-      canvas.height = Math.round(h * dpr);
+      canvas.width = Math.round(w * dpr * resolutionScale);
+      canvas.height = Math.round(h * dpr * resolutionScale);
       gl.viewport(0, 0, canvas.width, canvas.height);
     }
     window.addEventListener("resize", resize);
@@ -252,10 +277,18 @@ export function AmbientBackground() {
 
     const startTime = performance.now();
     let rafId = 0;
+    let frame = 0;
+    // Mobile targets ~30fps by skipping every other draw call; the eased
+    // mouse/time uniforms still update visibly smoothly at that rate.
+    const frameSkip = lite ? 2 : 1;
 
     function render(now: number) {
       rafId = requestAnimationFrame(render);
       if (!gl || !canvas) return;
+
+      frame++;
+      if (frame % frameSkip !== 0) return;
+
       const elapsed = (now - startTime) * 0.001;
 
       mouseCurrent.x += (mouseTarget.x - mouseCurrent.x) * 0.05;
@@ -273,7 +306,7 @@ export function AmbientBackground() {
       document.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("resize", resize);
     };
-  }, [enableWebGL]);
+  }, [prefersReducedMotion, isSmallScreen]);
 
   useEffect(() => {
     const wrapper = wrapperRef.current;
@@ -312,9 +345,7 @@ export function AmbientBackground() {
           "radial-gradient(circle closest-side, black 50%, transparent 100%)",
       }}
     >
-      {enableWebGL ? (
-        <canvas ref={canvasRef} className="w-full h-full block" />
-      ) : (
+      {prefersReducedMotion ? (
         <div
           className="w-full h-full block"
           style={{
@@ -322,6 +353,8 @@ export function AmbientBackground() {
               "radial-gradient(circle at 50% 45%, rgba(255,255,255,0.07), transparent 60%)",
           }}
         />
+      ) : (
+        <canvas ref={canvasRef} className="w-full h-full block" />
       )}
     </div>
   );
