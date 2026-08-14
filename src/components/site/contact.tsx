@@ -168,7 +168,7 @@ export function Contact() {
             <button
               type="submit"
               disabled={status === "submitting"}
-              className="group relative inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-full text-xs font-normal tracking-tight text-neutral-100 overflow-hidden transition-transform duration-500 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-70 disabled:hover:scale-100 self-start mt-2"
+              className="group relative inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-full text-xs font-normal tracking-tight text-neutral-100 overflow-hidden transition-transform duration-500 hover:scale-[1.02] active:scale-[0.98] cursor-pointer disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:scale-100 self-start mt-2"
               style={{
                 background:
                   "linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02))",
