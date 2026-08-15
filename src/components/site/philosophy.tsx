@@ -16,19 +16,21 @@ export function Philosophy() {
       </Reveal>
       <Reveal delay={0.1} className="mb-12">
         <p className="text-base sm:text-lg font-extralight leading-[1.8] text-neutral-400">
-          We believe that the best digital experiences operate at the
-          intersection of rigorous engineering and refined art. Every pixel
-          must serve a purpose. Every animation must feel organic. We don&apos;t
-          just build websites; we engineer digital presence that leaves a
-          lasting impression.
+          I care about the parts of a product most people never see, the
+          component that&apos;s actually reusable, the API that fails
+          gracefully, the review that catches the edge case before a user
+          does. Good engineering is quiet: it just works, and it keeps
+          working as the codebase grows. That&apos;s the standard I hold every
+          project to, whether it&apos;s a pixel-perfect frontend or a smart
+          contract that has to be right the first time.
         </p>
       </Reveal>
       <Reveal delay={0.2}>
         <a
-          href="#"
+          href="#contact"
           className="inline-flex items-center justify-center px-8 py-3.5 rounded-full text-xs font-normal tracking-tight text-neutral-100 border border-neutral-800 hover:border-neutral-500 hover:bg-neutral-800/50 transition-all duration-500 no-underline"
         >
-          Read our manifesto
+          Let&apos;s build something
         </a>
       </Reveal>
     </section>

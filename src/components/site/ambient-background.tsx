@@ -12,41 +12,31 @@ function subscribeToMediaQuery(query: string) {
   };
 }
 
-const subscribeReducedMotion = subscribeToMediaQuery(
-  "(prefers-reduced-motion: reduce)",
-);
-const getReducedMotion = () =>
-  window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-const getReducedMotionServer = () => false;
+// Touch capability, not viewport width, is the reliable signal here: a
+// tablet/Chromebook in "desktop site" mode reports a desktop-width viewport
+// while still running on mobile-class GPU hardware, where this raymarching
+// shader's precision-sensitive math (tiny surface/normal epsilons) has been
+// observed to break down into a blown-out white render. Small screens are
+// included too since narrow viewports are consistently phones/tablets.
+const DISABLE_QUERY =
+  "(max-width: 768px), (pointer: coarse), (prefers-reduced-motion: reduce)";
 
-const subscribeSmallScreen = subscribeToMediaQuery("(max-width: 768px)");
-const getSmallScreen = () => window.matchMedia("(max-width: 768px)").matches;
-const getSmallScreenServer = () => false;
+const subscribeDisableWebGL = subscribeToMediaQuery(DISABLE_QUERY);
+const getDisableWebGL = () => window.matchMedia(DISABLE_QUERY).matches;
+const getDisableWebGLServer = () => true;
 
 const VERTEX_SHADER = `
   attribute vec2 a_pos;
   void main(){ gl_Position = vec4(a_pos, 0.0, 1.0); }
 `;
 
-// `lite` trims the raymarch step count and noise octaves for mobile GPUs,
-// which cuts the dominant per-pixel cost (the loop and calcNormal's 6 extra
-// map() evaluations) by more than half while keeping the same silhouette.
-function buildFragmentShader({ lite }: { lite: boolean }) {
-  const maxSteps = lite ? 30 : 70;
-  const precision = lite ? "mediump" : "highp";
-  const extraOctaves = lite
-    ? ""
-    : `
-    morph += snoise(p * 1.5 - t * 0.05 + 10.0) * 0.08;
-    morph += snoise(p * 3.0 + t * 0.02) * 0.02;`;
-
-  return `
-  precision ${precision} float;
+const FRAGMENT_SHADER = `
+  precision highp float;
   uniform vec2 u_res;
   uniform float u_time;
   uniform vec2 u_mouse;
 
-  #define MAX_STEPS ${maxSteps}
+  #define MAX_STEPS 70
   #define MAX_DIST 20.0
   #define SURF_DIST 0.002
 
@@ -96,7 +86,9 @@ function buildFragmentShader({ lite }: { lite: boolean }) {
 
   float map(vec3 p, float t) {
     float radius = 1.8;
-    float morph = snoise(p * 0.8 + t * 0.1) * 0.2;${extraOctaves}
+    float morph = snoise(p * 0.8 + t * 0.1) * 0.2;
+    morph += snoise(p * 1.5 - t * 0.05 + 10.0) * 0.08;
+    morph += snoise(p * 3.0 + t * 0.02) * 0.02;
     return length(p) - radius + morph;
   }
 
@@ -183,7 +175,6 @@ function buildFragmentShader({ lite }: { lite: boolean }) {
     gl_FragColor = vec4(col, 1.0);
   }
 `;
-}
 
 function createShader(gl: WebGLRenderingContext, type: number, src: string) {
   const shader = gl.createShader(type);
@@ -200,23 +191,16 @@ export function AmbientBackground() {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const prefersReducedMotion = useSyncExternalStore(
-    subscribeReducedMotion,
-    getReducedMotion,
-    getReducedMotionServer,
-  );
-  const isSmallScreen = useSyncExternalStore(
-    subscribeSmallScreen,
-    getSmallScreen,
-    getSmallScreenServer,
+  const disableWebGL = useSyncExternalStore(
+    subscribeDisableWebGL,
+    getDisableWebGL,
+    getDisableWebGLServer,
   );
 
   useEffect(() => {
-    if (prefersReducedMotion) return;
+    if (disableWebGL) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
-
-    const lite = isSmallScreen;
 
     const gl = canvas.getContext("webgl", {
       alpha: false,
@@ -226,7 +210,7 @@ export function AmbientBackground() {
     if (!gl) return;
 
     const vs = createShader(gl, gl.VERTEX_SHADER, VERTEX_SHADER);
-    const fs = createShader(gl, gl.FRAGMENT_SHADER, buildFragmentShader({ lite }));
+    const fs = createShader(gl, gl.FRAGMENT_SHADER, FRAGMENT_SHADER);
     if (!vs || !fs) return;
 
     const prog = gl.createProgram();
@@ -260,16 +244,13 @@ export function AmbientBackground() {
     };
     document.addEventListener("mousemove", handleMouseMove);
 
-    // Mobile renders at a lower internal resolution (GPU upscales the
-    // canvas bitmap) on top of the cheaper "lite" shader above.
-    const dpr = Math.min(window.devicePixelRatio || 1, lite ? 1 : 1.5);
-    const resolutionScale = lite ? 0.6 : 1;
+    const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
     function resize() {
       if (!gl || !canvas) return;
       const w = window.innerWidth;
       const h = window.innerHeight;
-      canvas.width = Math.round(w * dpr * resolutionScale);
-      canvas.height = Math.round(h * dpr * resolutionScale);
+      canvas.width = Math.round(w * dpr);
+      canvas.height = Math.round(h * dpr);
       gl.viewport(0, 0, canvas.width, canvas.height);
     }
     window.addEventListener("resize", resize);
@@ -277,17 +258,10 @@ export function AmbientBackground() {
 
     const startTime = performance.now();
     let rafId = 0;
-    let frame = 0;
-    // Mobile targets ~30fps by skipping every other draw call; the eased
-    // mouse/time uniforms still update visibly smoothly at that rate.
-    const frameSkip = lite ? 2 : 1;
 
     function render(now: number) {
       rafId = requestAnimationFrame(render);
       if (!gl || !canvas) return;
-
-      frame++;
-      if (frame % frameSkip !== 0) return;
 
       const elapsed = (now - startTime) * 0.001;
 
@@ -306,7 +280,7 @@ export function AmbientBackground() {
       document.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("resize", resize);
     };
-  }, [prefersReducedMotion, isSmallScreen]);
+  }, [disableWebGL]);
 
   useEffect(() => {
     const wrapper = wrapperRef.current;
@@ -345,7 +319,7 @@ export function AmbientBackground() {
           "radial-gradient(circle closest-side, black 50%, transparent 100%)",
       }}
     >
-      {prefersReducedMotion ? (
+      {disableWebGL ? (
         <div
           className="w-full h-full block"
           style={{
