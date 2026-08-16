@@ -17,6 +17,7 @@ const SOCIAL_LINKS = [
     icon: "mdi:linkedin",
     href: "https://www.linkedin.com/in/hillary-chikendu-472422256/",
   },
+  { label: "GitHub", icon: "mdi:github", href: "https://github.com/ChikenduHillary" },
 ];
 
 const WEB3FORMS_ACCESS_KEY = process.env.NEXT_PUBLIC_WEB3FORMS_ACCESS_KEY ?? "";
