@@ -48,6 +48,21 @@ export const metadata: Metadata = {
   },
 };
 
+const personJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "Person",
+  name: "Hillary Chikendu",
+  alternateName: "Chikendu Hillary",
+  jobTitle: "Fullstack React / Next.js Developer",
+  url: siteUrl,
+  image: `${siteUrl}/og-image.png`,
+  sameAs: [
+    "https://github.com/ChikenduHillary",
+    "https://x.com/ChikenduHillary",
+    "https://www.linkedin.com/in/hillary-chikendu-472422256/",
+  ],
+};
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
@@ -55,6 +70,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${inter.variable} ${jetbrainsMono.variable} scroll-smooth h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-[#080808] text-white">
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(personJsonLd) }}
+        />
         {children}
       </body>
     </html>
